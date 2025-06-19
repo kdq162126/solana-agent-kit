@@ -5,52 +5,54 @@ import {
   PumpFunTokenOptions,
   SolanaAgentKit,
 } from "../../index";
+import FormData from "form-data";
+import fetch from "node-fetch";
 
-async function uploadMetadata(
+export async function uploadMetadata(
   tokenName: string,
   tokenTicker: string,
   description: string,
   imageUrl: string,
   options?: PumpFunTokenOptions,
 ): Promise<any> {
-  // Create metadata object
-  const formData = new URLSearchParams();
-  formData.append("name", tokenName);
-  formData.append("symbol", tokenTicker);
-  formData.append("description", description);
-
-  formData.append("showName", "true");
-
-  if (options?.twitter) {
-    formData.append("twitter", options.twitter);
-  }
-  if (options?.telegram) {
-    formData.append("telegram", options.telegram);
-  }
-  if (options?.website) {
-    formData.append("website", options.website);
-  }
-
-  const imageResponse = await fetch(imageUrl);
-  const imageBlob = await imageResponse.blob();
-  const files = {
-    file: new File([imageBlob], "token_image.png", { type: "image/png" }),
+  // Create metadata fields
+  const metadata: Record<string, string> = {
+    name: tokenName,
+    symbol: tokenTicker,
+    description,
+    showName: "true",
   };
 
+  if (options?.twitter) {
+    metadata.twitter = options.twitter;
+  }
+  if (options?.telegram) {
+    metadata.telegram = options.telegram;
+  }
+  if (options?.website) {
+    metadata.website = options.website;
+  }
+
+  // Download image
+  const imageResponse = await fetch(imageUrl);
+  const imageBuffer = await imageResponse.buffer();
+
   // Create form data with both metadata and file
-  const finalFormData = new FormData();
+  const formData = new FormData();
   // Add all metadata fields
-  for (const [key, value] of formData.entries()) {
-    finalFormData.append(key, value);
+  for (const [key, value] of Object.entries(metadata)) {
+    formData.append(key, value);
   }
-  // Add file if exists
-  if (files?.file) {
-    finalFormData.append("file", files.file);
-  }
+  // Add buffer as file with filename and content-type
+  formData.append("file", imageBuffer, {
+    filename: "token_image.png",
+    contentType: "image/png",
+  });
 
   const metadataResponse = await fetch("https://pump.fun/api/ipfs", {
     method: "POST",
-    body: finalFormData,
+    body: formData,
+    headers: formData.getHeaders(), // Important for multipart/form-data
   });
 
   if (!metadataResponse.ok) {
